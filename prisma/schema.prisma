@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   // "EMPLOYEE", "MANAGER", "ADMIN"
+  managerId String?
+  manager   User?    @relation("ManagerEmployee", fields: [managerId], references: [id])
+  employees User[]   @relation("ManagerEmployee")
+  createdAt DateTime @default(now())
+
+  goalSheets    GoalSheet[]
+  checkIns      CheckIn[]
+  auditLogs     AuditLog[]
+  sharedGoals   SharedGoal[]
+}
+
+model GoalSheet {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   User     @relation(fields: [employeeId], references: [id])
+  cycleYear  Int      @default(2025)
+  status     String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, RETURNED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  goals    Goal[]
+  checkIns CheckIn[]
+}
+
+model Goal {
+  id          String  @id @default(cuid())
+  goalSheetId String
+  goalSheet   GoalSheet @relation(fields: [goalSheetId], references: [id])
+  thrustArea  String
+  title       String
+  description String
+  uom         String  // NUMERIC_MIN, NUMERIC_MAX, TIMELINE, ZERO
+  target      String
+  weightage   Float
+  isShared    Boolean @default(false)
+  isLocked    Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  achievements Achievement[]
+  sharedGoals  SharedGoal[]
+  auditLogs    AuditLog[]
+}
+
+model Achievement {
+  id       String @id @default(cuid())
+  goalId   String
+  goal     Goal   @relation(fields: [goalId], references: [id])
+  quarter  Int    // 1, 2, 3, 4
+  actual   String
+  status   String // NOT_STARTED, ON_TRACK, COMPLETED
+  score    Float  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CheckIn {
+  id          String    @id @default(cuid())
+  goalSheetId String
+  goalSheet   GoalSheet @relation(fields: [goalSheetId], references: [id])
+  managerId   String
+  manager     User      @relation(fields: [managerId], references: [id])
+  quarter     Int
+  comment     String
+  createdAt   DateTime  @default(now())
+}
+
+model SharedGoal {
+  id           String @id @default(cuid())
+  goalId       String
+  goal         Goal   @relation(fields: [goalId], references: [id])
+  employeeId   String
+  employee     User   @relation(fields: [employeeId], references: [id])
+  weightage    Float
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+}
