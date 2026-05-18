@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const goalSheets = await prisma.goalSheet.findMany({
     where: { employeeId: payload.id },
-    include: { goals: true },
+    include: { goals: { include: { achievements: true } } },
     orderBy: { createdAt: 'desc' },
   })
   return NextResponse.json({ goalSheets })

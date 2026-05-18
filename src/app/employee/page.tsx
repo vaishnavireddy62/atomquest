@@ -9,6 +9,9 @@ export default function EmployeeDashboard() {
   const [goals, setGoals] = useState([{ thrustArea: '', title: '', description: '', uom: 'NUMERIC_MIN', target: '', weightage: '' }])
   const [submitting, setSubmitting] = useState(false)
   const [msg, setMsg] = useState('')
+  const [activeCheckin, setActiveCheckin] = useState<{ sheetId: string, quarter: number } | null>(null)
+  const [achievements, setAchievements] = useState<any>({})
+  const [checkinMsg, setCheckinMsg] = useState('')
   const router = useRouter()
 
   useEffect(() => { fetchData() }, [])
@@ -53,12 +56,37 @@ export default function EmployeeDashboard() {
     else { const d = await res.json(); setMsg(d.error || 'Error submitting') }
   }
 
+  function openCheckin(sheetId: string, quarter: number, gs: any) {
+    setActiveCheckin({ sheetId, quarter })
+    setCheckinMsg('')
+    const init: any = {}
+    gs.goals.forEach((g: any) => {
+      const existing = g.achievements?.find((a: any) => a.quarter === quarter)
+      init[g.id] = { actual: existing?.actual || '', status: existing?.status || 'NOT_STARTED' }
+    })
+    setAchievements(init)
+  }
+
+  async function saveAchievements() {
+    if (!activeCheckin) return
+    setCheckinMsg('')
+    const payload = Object.entries(achievements).map(([goalId, val]: any) => ({ goalId, actual: val.actual, status: val.status }))
+    const res = await fetch(`/api/goalsheets/${activeCheckin.sheetId}/achievements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quarter: activeCheckin.quarter, achievements: payload }),
+    })
+    if (res.ok) { setCheckinMsg('✅ Saved successfully!'); fetchData() }
+    else { const d = await res.json(); setCheckinMsg('❌ ' + (d.error || 'Error saving')) }
+  }
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
   }
 
   const statusColor: any = { DRAFT: 'bg-gray-100 text-gray-600', SUBMITTED: 'bg-yellow-100 text-yellow-700', APPROVED: 'bg-green-100 text-green-700', RETURNED: 'bg-red-100 text-red-700' }
+  const quarters = [{ q: 1, label: 'Q1 (July)' }, { q: 2, label: 'Q2 (October)' }, { q: 3, label: 'Q3 (January)' }, { q: 4, label: 'Q4 (March)' }]
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -121,7 +149,7 @@ export default function EmployeeDashboard() {
               <h3 className="font-semibold text-gray-800">Goal Sheet — {gs.cycleYear}</h3>
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor[gs.status]}`}>{gs.status}</span>
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm mb-4">
               <thead><tr className="text-left text-gray-500 border-b"><th className="pb-2">Thrust Area</th><th className="pb-2">Title</th><th className="pb-2">UoM</th><th className="pb-2">Target</th><th className="pb-2">Weight</th></tr></thead>
               <tbody>{gs.goals?.map((g: any) => (
                 <tr key={g.id} className="border-b last:border-0">
@@ -133,6 +161,73 @@ export default function EmployeeDashboard() {
                 </tr>
               ))}</tbody>
             </table>
+
+            {/* Quarterly Check-in buttons - only for APPROVED sheets */}
+            {gs.status === 'APPROVED' && (
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Quarterly Achievement Updates:</p>
+                <div className="flex gap-2 flex-wrap">
+                  {quarters.map(({ q, label }) => {
+                    const hasData = gs.goals?.some((g: any) => g.achievements?.some((a: any) => a.quarter === q))
+                    return (
+                      <button key={q} onClick={() => openCheckin(gs.id, q, gs)}
+                        className={`px-3 py-1 rounded text-sm font-medium ${hasData ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-gray-600 border border-gray-300'} hover:opacity-80`}>
+                        {label} {hasData ? '✓' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Achievement Entry Form */}
+            {activeCheckin?.sheetId === gs.id && (
+              <div className="mt-4 border rounded-lg p-4 bg-blue-50">
+                <h4 className="font-semibold text-blue-800 mb-3">
+                  {quarters.find(q => q.q === activeCheckin.quarter)?.label} — Achievement Update
+                </h4>
+                {checkinMsg && <div className={`px-3 py-2 rounded text-sm mb-3 ${checkinMsg.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>{checkinMsg}</div>}
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b">
+                      <th className="pb-2">Goal</th>
+                      <th className="pb-2">Target</th>
+                      <th className="pb-2">Actual</th>
+                      <th className="pb-2">Status</th>
+                      <th className="pb-2">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gs.goals?.map((g: any) => {
+                      const existing = g.achievements?.find((a: any) => a.quarter === activeCheckin.quarter)
+                      return (
+                        <tr key={g.id} className="border-b last:border-0">
+                          <td className="py-2 font-medium">{g.title}</td>
+                          <td className="py-2 text-gray-500">{g.target}</td>
+                          <td className="py-2">
+                            <input value={achievements[g.id]?.actual || ''} onChange={e => setAchievements({ ...achievements, [g.id]: { ...achievements[g.id], actual: e.target.value } })}
+                              className="border rounded px-2 py-1 text-sm w-24" placeholder="Actual" />
+                          </td>
+                          <td className="py-2">
+                            <select value={achievements[g.id]?.status || 'NOT_STARTED'} onChange={e => setAchievements({ ...achievements, [g.id]: { ...achievements[g.id], status: e.target.value } })}
+                              className="border rounded px-2 py-1 text-sm">
+                              <option value="NOT_STARTED">Not Started</option>
+                              <option value="ON_TRACK">On Track</option>
+                              <option value="COMPLETED">Completed</option>
+                            </select>
+                          </td>
+                          <td className="py-2 text-gray-500">{existing?.score != null ? `${existing.score.toFixed(0)}%` : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={saveAchievements} className="bg-blue-700 text-white px-4 py-2 rounded text-sm hover:bg-blue-800">Save Achievement</button>
+                  <button onClick={() => setActiveCheckin(null)} className="border px-4 py-2 rounded text-sm hover:bg-gray-100">Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
