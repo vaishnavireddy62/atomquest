@@ -7,6 +7,7 @@ export default function ManagerDashboard() {
   const [goalSheets, setGoalSheets] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [comment, setComment] = useState('')
+  const [quarter, setQuarter] = useState<{ [key: string]: number }>({})
   const [msg, setMsg] = useState('')
   const router = useRouter()
 
@@ -32,14 +33,21 @@ export default function ManagerDashboard() {
     setSelected(null); fetchData()
   }
 
-  async function addCheckin(gsId: string, quarter: number) {
+  async function addCheckin(gsId: string) {
     if (!comment) { setMsg('Please enter a comment'); return }
-    await fetch('/api/manager/checkins', {
+    const q = quarter[gsId] || 1
+    const res = await fetch('/api/manager/checkins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goalSheetId: gsId, quarter, comment }),
+      body: JSON.stringify({ goalSheetId: gsId, quarter: q, comment }),
     })
-    setComment(''); setMsg('Check-in saved!'); setTimeout(() => setMsg(''), 3000)
+    if (res.ok) {
+      setComment('')
+      setMsg('✅ Check-in saved!')
+      setTimeout(() => setMsg(''), 3000)
+    } else {
+      setMsg('❌ Error saving check-in')
+    }
   }
 
   async function logout() {
@@ -61,7 +69,7 @@ export default function ManagerDashboard() {
 
       <div className="max-w-6xl mx-auto p-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Team Goal Sheets</h2>
-        {msg && <div className="bg-green-50 text-green-700 px-4 py-2 rounded mb-4 text-sm">{msg}</div>}
+        {msg && <div className={`px-4 py-2 rounded mb-4 text-sm ${msg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{msg}</div>}
 
         {goalSheets.length === 0 ? (
           <div className="bg-white rounded-xl shadow p-12 text-center text-gray-400">No submitted goal sheets from your team yet.</div>
@@ -103,17 +111,47 @@ export default function ManagerDashboard() {
                 )}
 
                 {gs.status === 'APPROVED' && (
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-700 mb-2">Add Check-in Comment</h4>
-                    <div className="flex gap-3">
-                      <select className="border rounded px-3 py-2 text-sm" id={`q-${gs.id}`}>
-                        <option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option>
-                      </select>
-                      <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Enter check-in comment..." className="border rounded px-3 py-2 text-sm flex-1" />
-                      <button onClick={() => addCheckin(gs.id, Number((document.getElementById(`q-${gs.id}`) as HTMLSelectElement).value))} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">Save</button>
-                    </div>
-                  </div>
-                )}
+  <div className="border-t pt-4">
+    {/* Existing check-ins */}
+    {gs.checkIns && gs.checkIns.length > 0 && (
+      <div className="mb-4">
+        <h4 className="font-medium text-gray-700 mb-2">Check-in History</h4>
+        <div className="space-y-2">
+          {gs.checkIns.map((c: any) => (
+            <div key={c.id} className="bg-gray-50 rounded px-3 py-2 text-sm">
+              <span className="font-medium text-blue-600">Q{c.quarter}</span>
+              <span className="text-gray-500 mx-2">—</span>
+              <span className="text-gray-700">{c.comment}</span>
+              <span className="text-gray-400 text-xs ml-2">{new Date(c.createdAt).toLocaleDateString()}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    <h4 className="font-medium text-gray-700 mb-3">Add Check-in Comment</h4>
+    <div className="flex gap-3">
+      <select
+        value={quarter[gs.id] || 1}
+        onChange={e => setQuarter({ ...quarter, [gs.id]: Number(e.target.value) })}
+        className="border rounded px-3 py-2 text-sm"
+      >
+        <option value={1}>Q1 (July)</option>
+        <option value={2}>Q2 (October)</option>
+        <option value={3}>Q3 (January)</option>
+        <option value={4}>Q4 (March)</option>
+      </select>
+      <input
+        value={comment}
+        onChange={e => setComment(e.target.value)}
+        placeholder="Enter check-in comment..."
+        className="border rounded px-3 py-2 text-sm flex-1"
+      />
+      <button onClick={() => addCheckin(gs.id)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+        Save
+      </button>
+    </div>
+  </div>
+)}
               </div>
             )}
           </div>
