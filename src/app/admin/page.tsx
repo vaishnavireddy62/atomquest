@@ -60,37 +60,58 @@ export default function AdminDashboard() {
         </div>
 
         {tab === 'overview' && (
-          <div>
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow p-6 text-center">
-                <p className="text-3xl font-bold text-blue-700">{total}</p>
-                <p className="text-gray-500 text-sm mt-1">Total Goal Sheets</p>
-              </div>
-              <div className="bg-white rounded-xl shadow p-6 text-center">
-                <p className="text-3xl font-bold text-green-600">{approved}</p>
-                <p className="text-gray-500 text-sm mt-1">Approved</p>
-              </div>
-              <div className="bg-white rounded-xl shadow p-6 text-center">
-                <p className="text-3xl font-bold text-yellow-500">{submitted}</p>
-                <p className="text-gray-500 text-sm mt-1">Pending Approval</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Completion Dashboard</h3>
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-gray-500 border-b"><th className="pb-2">Employee</th><th className="pb-2">Manager</th><th className="pb-2">Status</th><th className="pb-2">Goals</th></tr></thead>
-                <tbody>{goalSheets.map((gs: any) => (
-                  <tr key={gs.id} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{gs.employee?.name}</td>
-                    <td className="py-2 text-gray-500">{gs.employee?.manager?.name || '—'}</td>
-                    <td className="py-2"><span className={`px-2 py-1 rounded-full text-xs ${statusColor[gs.status]}`}>{gs.status}</span></td>
-                    <td className="py-2">{gs.goals?.length || 0}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-          </div>
-        )}
+  <div>
+    <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="bg-white rounded-xl shadow p-6 text-center">
+        <p className="text-3xl font-bold text-blue-700">{total}</p>
+        <p className="text-gray-500 text-sm mt-1">Total Goal Sheets</p>
+      </div>
+      <div className="bg-white rounded-xl shadow p-6 text-center">
+        <p className="text-3xl font-bold text-green-600">{approved}</p>
+        <p className="text-gray-500 text-sm mt-1">Approved</p>
+      </div>
+      <div className="bg-white rounded-xl shadow p-6 text-center">
+        <p className="text-3xl font-bold text-yellow-500">{submitted}</p>
+        <p className="text-gray-500 text-sm mt-1">Pending Approval</p>
+      </div>
+    </div>
+    <div className="bg-white rounded-xl shadow p-6">
+      <h3 className="font-semibold text-gray-800 mb-4">Completion Dashboard</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 border-b">
+            <th className="pb-2">Employee</th>
+            <th className="pb-2">Manager</th>
+            <th className="pb-2">Status</th>
+            <th className="pb-2">Goals</th>
+            <th className="pb-2">Q1</th>
+            <th className="pb-2">Q2</th>
+            <th className="pb-2">Q3</th>
+            <th className="pb-2">Q4</th>
+            <th className="pb-2">Check-ins</th>
+          </tr>
+        </thead>
+        <tbody>{goalSheets.map((gs: any) => {
+          const hasQ = (q: number) => gs.goals?.some((g: any) => g.achievements?.some((a: any) => a.quarter === q))
+          const checkinCount = gs.checkIns?.length || 0
+          return (
+            <tr key={gs.id} className="border-b last:border-0">
+              <td className="py-2 font-medium">{gs.employee?.name}</td>
+              <td className="py-2 text-gray-500">{gs.employee?.manager?.name || '—'}</td>
+              <td className="py-2"><span className={`px-2 py-1 rounded-full text-xs ${statusColor[gs.status]}`}>{gs.status}</span></td>
+              <td className="py-2">{gs.goals?.length || 0}</td>
+              <td className="py-2">{gs.status === 'APPROVED' ? (hasQ(1) ? '✅' : '⬜') : '—'}</td>
+              <td className="py-2">{gs.status === 'APPROVED' ? (hasQ(2) ? '✅' : '⬜') : '—'}</td>
+              <td className="py-2">{gs.status === 'APPROVED' ? (hasQ(3) ? '✅' : '⬜') : '—'}</td>
+              <td className="py-2">{gs.status === 'APPROVED' ? (hasQ(4) ? '✅' : '⬜') : '—'}</td>
+              <td className="py-2"><span className={`px-2 py-1 rounded text-xs ${checkinCount > 0 ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{checkinCount} comments</span></td>
+            </tr>
+          )
+        })}</tbody>
+      </table>
+    </div>
+  </div>
+)}
 
         {tab === 'goalsheets' && (
           <div className="bg-white rounded-xl shadow p-6">
