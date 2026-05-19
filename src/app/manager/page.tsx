@@ -10,6 +10,7 @@ export default function ManagerDashboard() {
   const [quarter, setQuarter] = useState<{ [key: string]: number }>({})
   const [msg, setMsg] = useState('')
   const router = useRouter()
+  const [editableGoals, setEditableGoals] = useState<{ [key: string]: any[] }>({})
 
   useEffect(() => { fetchData() }, [])
 
@@ -24,14 +25,27 @@ export default function ManagerDashboard() {
   }
 
   async function approve(id: string) {
+  if (editableGoals[id]) {
+    await fetch(`/api/manager/goalsheets/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goals: editableGoals[id] }),
+    })
+  } else {
     await fetch(`/api/manager/goalsheets/${id}/approve`, { method: 'POST' })
-    setSelected(null); fetchData()
   }
+  setSelected(null); fetchData()
+}
 
   async function returnSheet(id: string) {
     await fetch(`/api/manager/goalsheets/${id}/return`, { method: 'POST' })
     setSelected(null); fetchData()
   }
+  function updateEditableGoal(gsId: string, originalGoals: any[], index: number, field: string, value: string) {
+  const current = editableGoals[gsId] || originalGoals.map(g => ({ ...g }))
+  const updated = current.map((g: any, i: number) => i === index ? { ...g, [field]: value } : g)
+  setEditableGoals({ ...editableGoals, [gsId]: updated })
+}
 
   async function addCheckin(gsId: string) {
     if (!comment) { setMsg('Please enter a comment'); return }
@@ -104,11 +118,43 @@ export default function ManagerDashboard() {
                 </table>
 
                 {gs.status === 'SUBMITTED' && (
-                  <div className="flex gap-3 mb-4">
-                    <button onClick={() => approve(gs.id)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✓ Approve</button>
-                    <button onClick={() => returnSheet(gs.id)} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600">↩ Return for Rework</button>
-                  </div>
-                )}
+  <div>
+    <h4 className="font-medium text-gray-700 mb-2">Review & Edit Goals</h4>
+    <table className="w-full text-sm mb-3">
+      <thead><tr className="text-left text-gray-500 border-b">
+        <th className="pb-2">Thrust Area</th>
+        <th className="pb-2">Title</th>
+        <th className="pb-2">Target</th>
+        <th className="pb-2">Weight %</th>
+      </tr></thead>
+      <tbody>{(editableGoals[gs.id] || gs.goals)?.map((g: any, i: number) => (
+        <tr key={g.id} className="border-b last:border-0">
+          <td className="py-2 text-gray-600">{g.thrustArea}</td>
+          <td className="py-2 font-medium">{g.title}</td>
+          <td className="py-2">
+            <input
+              value={editableGoals[gs.id]?.[i]?.target ?? g.target}
+              onChange={e => updateEditableGoal(gs.id, gs.goals, i, 'target', e.target.value)}
+              className="border rounded px-2 py-1 text-sm w-20"
+            />
+          </td>
+          <td className="py-2">
+            <input
+              type="number"
+              value={editableGoals[gs.id]?.[i]?.weightage ?? g.weightage}
+              onChange={e => updateEditableGoal(gs.id, gs.goals, i, 'weightage', e.target.value)}
+              className="border rounded px-2 py-1 text-sm w-16"
+            />
+          </td>
+        </tr>
+      ))}</tbody>
+    </table>
+    <div className="flex gap-3">
+      <button onClick={() => approve(gs.id)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✓ Approve</button>
+      <button onClick={() => returnSheet(gs.id)} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600">↩ Return for Rework</button>
+    </div>
+  </div>
+)}
 
                 {gs.status === 'APPROVED' && (
   <div className="border-t pt-4">
