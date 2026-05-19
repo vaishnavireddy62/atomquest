@@ -13,6 +13,8 @@ export default function EmployeeDashboard() {
   const [achievements, setAchievements] = useState<any>({})
   const [checkinMsg, setCheckinMsg] = useState('')
   const router = useRouter()
+  const [editingSheetId, setEditingSheetId] = useState<string | null>(null)
+  const [editGoals, setEditGoals] = useState<any[]>([])
 
   useEffect(() => { fetchData() }, [])
 
@@ -38,6 +40,15 @@ export default function EmployeeDashboard() {
   function updateGoal(i: number, field: string, value: string) {
     setGoals(goals.map((g, idx) => idx === i ? { ...g, [field]: value } : g))
   }
+  function updateEditGoal(i: number, field: string, value: string) {
+  setEditGoals(editGoals.map((g, idx) =>
+    idx === i ? { ...g, [field]: value } : g
+  ))
+}
+
+function removeEditGoal(i: number) {
+  setEditGoals(editGoals.filter((_, idx) => idx !== i))
+}
 
   async function submitGoals() {
     setMsg('')
@@ -55,6 +66,22 @@ export default function EmployeeDashboard() {
     if (res.ok) { setShowForm(false); setGoals([{ thrustArea: '', title: '', description: '', uom: 'NUMERIC_MIN', target: '', weightage: '' }]); fetchData() }
     else { const d = await res.json(); setMsg(d.error || 'Error submitting') }
   }
+  async function resubmitGoals(sheetId: string) {
+  setMsg('')
+  const totalWeight = editGoals.reduce((s, g) => s + Number(g.weightage), 0)
+  if (totalWeight !== 100) { setMsg('Total weightage must equal 100%'); return }
+  if (editGoals.some(g => Number(g.weightage) < 10)) { setMsg('Each goal must have at least 10% weightage'); return }
+  if (editGoals.some(g => !g.title || !g.thrustArea || !g.target)) { setMsg('Please fill all required fields'); return }
+  setSubmitting(true)
+  const res = await fetch(`/api/goalsheets/${sheetId}/resubmit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({goals: editGoals }),
+  })
+  setSubmitting(false)
+  if (res.ok) { setEditingSheetId(null); fetchData() }
+  else { const d = await res.json(); setMsg(d.error || 'Error resubmitting') }
+}
 
   function openCheckin(sheetId: string, quarter: number, gs: any) {
     setActiveCheckin({ sheetId, quarter })
@@ -161,6 +188,80 @@ export default function EmployeeDashboard() {
                 </tr>
               ))}</tbody>
             </table>
+            {gs.status === 'RETURNED' && (
+  <div className="border-t pt-4">
+    <div className="bg-red-50 text-red-600 px-4 py-2 rounded mb-3 text-sm">
+      ⚠️ This goal sheet was returned for rework. Please edit and resubmit.
+    </div>
+    <button
+      onClick={() => {
+        setEditGoals(gs.goals.map((g: any) => ({
+          thrustArea: g.thrustArea,
+          title: g.title,
+          description: g.description,
+          uom: g.uom,
+          target: g.target,
+          weightage: String(g.weightage),
+        })))
+        setEditingSheetId(gs.id)
+        setMsg('')
+      }}
+      className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-orange-600"
+    >
+      ✏️ Edit & Resubmit
+    </button>
+  </div>
+)}
+{editingSheetId === gs.id && (
+  <div className="border rounded-lg p-4 mt-4 bg-orange-50">
+    <h3 className="text-lg font-semibold mb-4 text-orange-700">Edit & Resubmit Goal Sheet</h3>
+    {msg && <div className="bg-red-50 text-red-600 px-4 py-2 rounded mb-4 text-sm">{msg}</div>}
+    {editGoals.map((g, i) => (
+      <div key={i} className="border rounded-lg p-4 mb-4 bg-white">
+        <div className="flex justify-between mb-2">
+          <span className="font-medium text-gray-700">Goal {i + 1}</span>
+          {editGoals.length > 1 && <button onClick={() => removeEditGoal(i)} className="text-red-500 text-sm">Remove</button>}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <input placeholder="Thrust Area *" value={g.thrustArea} onChange={e => updateEditGoal(i, 'thrustArea', e.target.value)} className="border rounded px-3 py-2 text-sm" />
+          <input placeholder="Goal Title *" value={g.title} onChange={e => updateEditGoal(i, 'title', e.target.value)} className="border rounded px-3 py-2 text-sm" />
+          <input placeholder="Description" value={g.description} onChange={e => updateEditGoal(i, 'description', e.target.value)} className="border rounded px-3 py-2 text-sm col-span-2" />
+          <select value={g.uom} onChange={e => updateEditGoal(i, 'uom', e.target.value)} className="border rounded px-3 py-2 text-sm">
+            <option value="NUMERIC_MIN">Numeric (Higher is better)</option>
+            <option value="NUMERIC_MAX">Numeric (Lower is better)</option>
+            <option value="TIMELINE">Timeline</option>
+            <option value="ZERO">Zero-based</option>
+          </select>
+          <input placeholder="Target *" value={g.target} onChange={e => updateEditGoal(i, 'target', e.target.value)} className="border rounded px-3 py-2 text-sm" />
+          <input placeholder="Weightage % *" type="number" value={g.weightage} onChange={e => updateEditGoal(i, 'weightage', e.target.value)} className="border rounded px-3 py-2 text-sm" />
+        </div>
+      </div>
+    ))}
+    <div className="flex gap-3 mt-2">
+  <button
+    onClick={() => setEditGoals([
+  ...editGoals,
+  {
+    thrustArea: '',
+    title: '',
+    description: '',
+    uom: 'NUMERIC_MIN',
+    target: '',
+    weightage: ''
+  }
+])}
+   className="border border-orange-500 text-orange-500 px-4 py-2 rounded-lg text-sm hover:bg-orange-50"
+>
+  + Add Goal
+</button>
+      <button onClick={() => resubmitGoals(gs.id)} disabled={submitting} className="bg-orange-500 text-white px-6 py-2 rounded-lg text-sm hover:bg-orange-600 disabled:opacity-50">
+        {submitting ? 'Resubmitting...' : 'Resubmit for Approval'}
+      </button>
+      <button onClick={() => setEditingSheetId(null)} className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-100">Cancel</button>
+    </div>
+    <p className="text-xs text-gray-400 mt-2">Total weightage: {goals.reduce((s, g) => s + Number(g.weightage || 0), 0)}% (must be 100%)</p>
+  </div>
+)}
 
             {/* Quarterly Check-in buttons - only for APPROVED sheets */}
             {gs.status === 'APPROVED' && (
